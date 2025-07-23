@@ -1,0 +1,89 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OEM Reservation System</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .slot { padding: 10px; border: 1px solid #ccc; margin: 5px; cursor: pointer; }
+    .reserved { background-color: red; color: white; }
+  </style>
+</head>
+<body>
+  <h1>OEM Reservation System</h1>
+  <label for="site">Select Site:</label>
+  <select id="site">
+    <option>McKinney site</option>
+    <option>Floyd site</option>
+    <option>E/// Site</option>
+    <option>Legacy Site (NSA)</option>
+    <option>Hospital Site (FR2-NRDC)</option>
+    <option>Dallas Downtown Parking Lot (FR2-ENDC)</option>
+  </select>
+  <br><br>
+  <input type="date" id="datePicker" />
+  <div id="slots"></div>
+
+  <script>
+    const apiBase = "/api";
+    const token = localStorage.getItem("token");
+
+    document.getElementById("datePicker").addEventListener("change", function() {
+      const site = document.getElementById("site").value;
+      loadReservations(this.value, site);
+    });
+
+    async function loadReservations(date, site) {
+      try {
+        const res = await fetch(`${apiBase}/reservations?site=${encodeURIComponent(site)}&date=${date}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+
+        const slotsContainer = document.getElementById("slots");
+        slotsContainer.innerHTML = "";
+
+        const hours = [
+          "06:00", "08:00", "10:00", "12:00",
+          "14:00", "16:00", "18:00", "20:00"
+        ];
+
+        hours.forEach(hour => {
+          const slotKey = `${site}_${date}_${hour}`;
+          const existing = data.find(d => d.time === hour);
+          const div = document.createElement("div");
+          div.className = "slot";
+          if (existing) {
+            div.classList.add("reserved");
+            div.textContent = `${hour} - ${existing.note || 'Reserved'}`;
+          } else {
+            div.textContent = hour;
+          }
+
+          div.addEventListener("click", async () => {
+            const note = prompt("Enter note for reservation:", existing ? existing.note : "");
+            if (note !== null) {
+              const res = await fetch(`${apiBase}/reservations`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ site, date, time: hour, note })
+              });
+              if (res.ok) loadReservations(date, site);
+              else alert("Reservation failed");
+            }
+          });
+
+          slotsContainer.appendChild(div);
+        });
+      } catch (err) {
+        alert("Error loading reservations");
+      }
+    }
+  </script>
+</body>
+</html>
